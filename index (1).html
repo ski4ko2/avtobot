@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Авто-снайпер</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--tg-theme-bg-color, #f0f2f5);
+      color: var(--tg-theme-text-color, #000);
+      min-height: 100vh;
+    }
+    .header {
+      background: var(--tg-theme-secondary-bg-color, #fff);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+    }
+    .header-icon {
+      width: 36px; height: 36px;
+      background: var(--tg-theme-button-color, #5288c1);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .header-title { font-size: 17px; font-weight: 600; }
+    .header-sub { font-size: 12px; color: var(--tg-theme-hint-color, #888); }
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--tg-theme-secondary-bg-color, #fff);
+      border-top: 1px solid rgba(0,0,0,0.08);
+      display: flex; z-index: 100;
+    }
+    .nav-btn {
+      flex: 1; padding: 10px 8px 14px;
+      text-align: center; cursor: pointer;
+      border: none; background: none;
+      color: var(--tg-theme-hint-color, #888);
+      font-size: 11px; transition: color 0.2s;
+    }
+    .nav-btn.active { color: var(--tg-theme-button-color, #5288c1); }
+    .nav-icon { font-size: 22px; display: block; margin-bottom: 3px; }
+    .screen { display: none; padding: 16px; padding-bottom: 80px; }
+    .screen.active { display: block; }
+    .field { margin-bottom: 14px; }
+    .field label {
+      display: block; font-size: 13px;
+      color: var(--tg-theme-hint-color, #888);
+      margin-bottom: 6px; font-weight: 500;
+    }
+    select, input[type="number"] {
+      width: 100%; padding: 12px 14px;
+      border: 1px solid rgba(0,0,0,0.12);
+      border-radius: 10px; font-size: 15px;
+      background: var(--tg-theme-secondary-bg-color, #fff);
+      color: var(--tg-theme-text-color, #000);
+      outline: none; appearance: none; -webkit-appearance: none;
+    }
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 36px;
+    }
+    select:focus, input:focus { border-color: var(--tg-theme-button-color, #5288c1); }
+    .budget-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .save-btn {
+      width: 100%; padding: 14px;
+      background: var(--tg-theme-button-color, #5288c1);
+      color: var(--tg-theme-button-text-color, #fff);
+      border: none; border-radius: 12px;
+      font-size: 16px; font-weight: 600;
+      cursor: pointer; margin-top: 8px;
+    }
+    .save-btn:active { opacity: 0.85; }
+    .error { color: #e74c3c; font-size: 12px; margin-top: 4px; display: none; }
+    .error.show { display: block; }
+    .searches-list { display: flex; flex-direction: column; gap: 10px; }
+    .search-card {
+      background: var(--tg-theme-secondary-bg-color, #fff);
+      border-radius: 14px; padding: 14px;
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+    .card-header {
+      display: flex; justify-content: space-between;
+      align-items: flex-start; margin-bottom: 10px;
+    }
+    .card-title { font-size: 15px; font-weight: 600; }
+    .card-badge {
+      font-size: 11px; padding: 3px 8px; border-radius: 20px;
+      background: #e8f4e8; color: #2d7a2d;
+    }
+    .card-params { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .param-tag {
+      font-size: 12px; padding: 4px 10px; border-radius: 20px;
+      background: var(--tg-theme-bg-color, #f0f2f5);
+      color: var(--tg-theme-hint-color, #666);
+    }
+    .card-footer { display: flex; justify-content: flex-end; }
+    .delete-btn {
+      font-size: 13px; color: #e74c3c;
+      background: none; border: 1px solid #e74c3c;
+      border-radius: 8px; padding: 6px 14px; cursor: pointer;
+    }
+    .empty-state { text-align: center; padding: 48px 20px; color: var(--tg-theme-hint-color, #888); }
+    .empty-icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-title { font-size: 16px; font-weight: 500; margin-bottom: 6px; color: var(--tg-theme-text-color, #000); }
+    .empty-text { font-size: 14px; line-height: 1.5; }
+    .empty-btn {
+      margin-top: 20px; padding: 12px 24px;
+      background: var(--tg-theme-button-color, #5288c1);
+      color: var(--tg-theme-button-text-color, #fff);
+      border: none; border-radius: 10px; font-size: 15px; cursor: pointer;
+    }
+    .section-title { font-size: 13px; color: var(--tg-theme-hint-color, #888); margin-bottom: 10px; }
+    .success-msg {
+      display: none; background: #e8f4e8; color: #2d7a2d;
+      padding: 12px 16px; border-radius: 10px;
+      font-size: 14px; margin-bottom: 14px; text-align: center;
+    }
+    .success-msg.show { display: block; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-icon">🎯</div>
+  <div>
+    <div class="header-title">Авто-снайпер</div>
+    <div class="header-sub">Знаходжу авто нижче ринку</div>
+  </div>
+</div>
+
+<!-- Екран: Новий пошук -->
+<div class="screen active" id="screen-add">
+  <div class="success-msg" id="success-msg">✅ Пошук збережено! Починаю моніторинг.</div>
+
+  <div class="field">
+    <label>Марка авто</label>
+    <select id="brand-select" onchange="onBrandChange()">
+      <option value="">Оберіть марку</option>
+      <option>BMW</option><option>Toyota</option><option>Volkswagen</option>
+      <option>Mercedes-Benz</option><option>Audi</option><option>Hyundai</option>
+      <option>Kia</option><option>Ford</option><option>Honda</option>
+      <option>Nissan</option><option>Mazda</option><option>Skoda</option>
+      <option>Renault</option><option>Peugeot</option><option>Opel</option>
+      <option>Mitsubishi</option><option>Subaru</option><option>Lexus</option>
+      <option>Volvo</option><option>Jeep</option><option>Chevrolet</option>
+      <option>Porsche</option><option>Land Rover</option><option>Alfa Romeo</option>
+      <option>Fiat</option><option>Seat</option><option>Citroen</option>
+      <option>Dacia</option><option>Suzuki</option><option>Geely</option>
+      <option>Chery</option><option>BYD</option><option>Haval</option>
+    </select>
+    <div class="error" id="brand-error">Оберіть марку авто</div>
+  </div>
+
+  <div class="field">
+    <label>Модель</label>
+    <select id="model-select">
+      <option value="будь-яка">Будь-яка модель</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <label>Місто</label>
+    <select id="city-select">
+      <option value="будь-яке">Будь-яке місто</option>
+      <option>Київ</option><option>Харків</option><option>Одеса</option>
+      <option>Дніпро</option><option>Львів</option><option>Запоріжжя</option>
+      <option>Вінниця</option><option>Полтава</option><option>Черкаси</option>
+      <option>Рівне</option><option>Хмельницький</option><option>Житомир</option>
+      <option>Чернівці</option><option>Суми</option><option>Тернопіль</option>
+      <option>Луцьк</option><option>Івано-Франківськ</option><option>Кропивницький</option>
+      <option>Чернігів</option><option>Ужгород</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <label>Бюджет ($)</label>
+    <div class="budget-row">
+      <input type="number" id="budget-from" placeholder="від" min="0">
+      <input type="number" id="budget-to" placeholder="до" min="0">
+    </div>
+    <div class="error" id="budget-error">Вкажіть максимальний бюджет</div>
+  </div>
+
+  <div class="field">
+    <label>Мінімальна знижка від ринку</label>
+    <select id="discount-select">
+      <option value="5">5% і більше</option>
+      <option value="10" selected>10% і більше</option>
+      <option value="15">15% і більше</option>
+      <option value="20">20% і більше</option>
+      <option value="25">25% і більше</option>
+      <option value="30">30% і більше</option>
+    </select>
+  </div>
+
+  <button class="save-btn" onclick="saveSearch()">Зберегти пошук</button>
+</div>
+
+<!-- Екран: Активні пошуки -->
+<div class="screen" id="screen-searches">
+  <div class="section-title" id="searches-count"></div>
+  <div class="searches-list" id="searches-list"></div>
+</div>
+
+<div class="bottom-nav">
+  <button class="nav-btn active" id="nav-add" onclick="showScreen('add')">
+    <span class="nav-icon">🔍</span>Новий пошук
+  </button>
+  <button class="nav-btn" id="nav-searches" onclick="showScreen('searches')">
+    <span class="nav-icon">📋</span>Мої пошуки
+  </button>
+</div>
+
+<script>
+const tg = window.Telegram.WebApp;
+tg.ready();
+tg.expand();
+
+const WEBHOOK_URL = 'ВАШ_N8N_WEBHOOK_URL';
+
+const models = {
+  'BMW': ['1 Series','2 Series','3 Series','4 Series','5 Series','7 Series','X1','X3','X5','X6','X7','M3','M5','Z4'],
+  'Toyota': ['Camry','Corolla','RAV4','Land Cruiser','Highlander','Prius','Yaris','C-HR','Venza'],
+  'Volkswagen': ['Golf','Passat','Tiguan','Touareg','Polo','Jetta','T-Roc','ID.4','Caddy'],
+  'Mercedes-Benz': ['C-Class','E-Class','S-Class','A-Class','GLC','GLE','GLS','CLA','CLS'],
+  'Audi': ['A3','A4','A5','A6','A7','A8','Q3','Q5','Q7','Q8','TT','e-tron'],
+  'Hyundai': ['Tucson','Santa Fe','Elantra','Sonata','Creta','i30','Accent','Kona'],
+  'Kia': ['Sportage','Sorento','Cerato','Rio','Stinger','Carnival','EV6'],
+  'Ford': ['Focus','Fusion','Mustang','Explorer','Escape','Edge','Ranger','Kuga'],
+  'Honda': ['Civic','Accord','CR-V','HR-V','Pilot','Jazz'],
+  'Nissan': ['Qashqai','X-Trail','Juke','Leaf','Pathfinder','Navara','Murano'],
+  'Mazda': ['Mazda3','Mazda6','CX-3','CX-5','CX-9','MX-5','CX-30'],
+  'Skoda': ['Octavia','Superb','Kodiaq','Karoq','Fabia','Kamiq'],
+  'Renault': ['Duster','Logan','Sandero','Megane','Captur','Arkana'],
+  'Peugeot': ['208','308','3008','5008','508','2008'],
+  'Opel': ['Astra','Insignia','Mokka','Crossland','Grandland'],
+  'Mitsubishi': ['Outlander','ASX','Eclipse Cross','L200','Pajero'],
+  'Subaru': ['Forester','Outback','XV','Impreza','Legacy'],
+  'Lexus': ['RX','NX','ES','IS','GX','LX','UX'],
+  'Volvo': ['XC60','XC90','XC40','S60','S90','V60'],
+  'Jeep': ['Wrangler','Cherokee','Grand Cherokee','Compass'],
+  'Chevrolet': ['Cruze','Malibu','Equinox','Tahoe','Camaro'],
+  'Porsche': ['Cayenne','Macan','Panamera','911','Taycan'],
+  'Land Rover': ['Defender','Discovery','Range Rover','Freelander'],
+  'Geely': ['Atlas','Coolray','Emgrand','Tugella'],
+  'Chery': ['Tiggo 4','Tiggo 7','Tiggo 8','Arrizo 5'],
+  'BYD': ['Atto 3','Han','Tang','Seal'],
+  'Haval': ['F7','H6','Jolion'],
+};
+
+function onBrandChange() {
+  const brand = document.getElementById('brand-select').value;
+  const sel = document.getElementById('model-select');
+  sel.innerHTML = '<option value="будь-яка">Будь-яка модель</option>';
+  (models[brand] || []).forEach(m => {
+    const o = document.createElement('option');
+    o.value = m; o.textContent = m;
+    sel.appendChild(o);
+  });
+}
+
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  if (name === 'searches') renderSearches();
+}
+
+function getSearches() {
+  try { return JSON.parse(localStorage.getItem('avto_searches') || '[]'); }
+  catch { return []; }
+}
+
+function saveSearchesToStorage(list) {
+  localStorage.setItem('avto_searches', JSON.stringify(list));
+}
+
+function renderSearches() {
+  const list = getSearches();
+  const container = document.getElementById('searches-list');
+  const countEl = document.getElementById('searches-count');
+
+  if (list.length === 0) {
+    countEl.textContent = '';
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🔍</div>
+        <div class="empty-title">Немає активних пошуків</div>
+        <div class="empty-text">Створи перший пошук і я знайду авто нижче ринкової ціни</div>
+        <button class="empty-btn" onclick="showScreen('add')">Створити пошук</button>
+      </div>`;
+    return;
+  }
+
+  countEl.textContent = `Активних пошуків: ${list.length}`;
+  container.innerHTML = list.map((s, i) => `
+    <div class="search-card">
+      <div class="card-header">
+        <div class="card-title">${s.brand} ${s.model !== 'будь-яка' ? s.model : ''}</div>
+        <div class="card-badge">активний</div>
+      </div>
+      <div class="card-params">
+        <span class="param-tag">📍 ${s.city}</span>
+        ${s.budget_to ? `<span class="param-tag">💰 до ${parseInt(s.budget_to).toLocaleString()}$</span>` : ''}
+        <span class="param-tag">📉 -${s.discount}% від ринку</span>
+      </div>
+      <div class="card-footer">
+        <button class="delete-btn" onclick="deleteSearch(${i})">Видалити</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function deleteSearch(index) {
+  const list = getSearches();
+  list.splice(index, 1);
+  saveSearchesToStorage(list);
+  renderSearches();
+}
+
+function saveSearch() {
+  const brand = document.getElementById('brand-select').value;
+  const budgetTo = document.getElementById('budget-to').value;
+  let valid = true;
+
+  if (!brand) {
+    document.getElementById('brand-error').classList.add('show');
+    valid = false;
+  } else {
+    document.getElementById('brand-error').classList.remove('show');
+  }
+
+  if (!budgetTo || parseInt(budgetTo) < 500) {
+    document.getElementById('budget-error').classList.add('show');
+    valid = false;
+  } else {
+    document.getElementById('budget-error').classList.remove('show');
+  }
+
+  if (!valid) return;
+
+  const search = {
+    telegram_id: String(tg.initDataUnsafe?.user?.id || 'test'),
+    username: tg.initDataUnsafe?.user?.username || '',
+    brand,
+    model: document.getElementById('model-select').value,
+    city: document.getElementById('city-select').value,
+    budget_from: document.getElementById('budget-from').value || '0',
+    budget_to: budgetTo,
+    discount: document.getElementById('discount-select').value,
+    status: 'active',
+    created_at: new Date().toISOString()
+  };
+
+  const list = getSearches();
+  list.push(search);
+  saveSearchesToStorage(list);
+
+  fetch(WEBHOOK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'create', search })
+  }).catch(() => {});
+
+  document.getElementById('brand-select').value = '';
+  document.getElementById('model-select').innerHTML = '<option value="будь-яка">Будь-яка модель</option>';
+  document.getElementById('city-select').value = 'будь-яке';
+  document.getElementById('budget-from').value = '';
+  document.getElementById('budget-to').value = '';
+  document.getElementById('discount-select').value = '10';
+
+  const msg = document.getElementById('success-msg');
+  msg.classList.add('show');
+  setTimeout(() => msg.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
