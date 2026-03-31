@@ -45,13 +45,19 @@
     }
     .nav-btn.active { color: var(--tg-theme-button-color, #5288c1); }
     .nav-icon { font-size: 22px; display: block; margin-bottom: 3px; }
-    .screen { display: none; padding: 16px; padding-bottom: 80px; }
+    .screen { display: none; padding: 16px; padding-bottom: 90px; }
     .screen.active { display: block; }
     .field { margin-bottom: 14px; }
     .field label {
       display: block; font-size: 13px;
       color: var(--tg-theme-hint-color, #888);
       margin-bottom: 6px; font-weight: 500;
+    }
+    .optional-tag {
+      font-size: 11px;
+      color: var(--tg-theme-hint-color, #aaa);
+      font-weight: 400;
+      margin-left: 4px;
     }
     select, input[type="number"] {
       width: 100%; padding: 12px 14px;
@@ -68,7 +74,7 @@
       padding-right: 36px;
     }
     select:focus, input:focus { border-color: var(--tg-theme-button-color, #5288c1); }
-    .budget-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .save-btn {
       width: 100%; padding: 14px;
       background: var(--tg-theme-button-color, #5288c1);
@@ -80,6 +86,25 @@
     .save-btn:active { opacity: 0.85; }
     .error { color: #e74c3c; font-size: 12px; margin-top: 4px; display: none; }
     .error.show { display: block; }
+
+    /* Toast */
+    .toast {
+      display: none;
+      position: fixed;
+      top: 70px; left: 50%; transform: translateX(-50%);
+      background: #2d7a2d;
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 30px;
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 999;
+      white-space: nowrap;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    .toast.show { display: block; }
+
+    /* Search cards */
     .searches-list { display: flex; flex-direction: column; gap: 10px; }
     .search-card {
       background: var(--tg-theme-secondary-bg-color, #fff);
@@ -118,15 +143,11 @@
       border: none; border-radius: 10px; font-size: 15px; cursor: pointer;
     }
     .section-title { font-size: 13px; color: var(--tg-theme-hint-color, #888); margin-bottom: 10px; }
-    .success-msg {
-      display: none; background: #e8f4e8; color: #2d7a2d;
-      padding: 12px 16px; border-radius: 10px;
-      font-size: 14px; margin-bottom: 14px; text-align: center;
-    }
-    .success-msg.show { display: block; }
   </style>
 </head>
 <body>
+
+<div class="toast" id="toast">✅ Пошук збережено!</div>
 
 <div class="header">
   <div class="header-icon">🎯</div>
@@ -138,7 +159,6 @@
 
 <!-- Екран: Новий пошук -->
 <div class="screen active" id="screen-add">
-  <div class="success-msg" id="success-msg">✅ Пошук збережено! Починаю моніторинг.</div>
 
   <div class="field">
     <label>Марка авто</label>
@@ -160,14 +180,26 @@
   </div>
 
   <div class="field">
-    <label>Модель</label>
+    <label>Модель </label>
     <select id="model-select">
       <option value="будь-яка">Будь-яка модель</option>
     </select>
   </div>
 
   <div class="field">
-    <label>Місто</label>
+    <label>Рік випуску </label>
+    <div class="two-col">
+      <select id="year-from">
+        <option value="">від</option>
+      </select>
+      <select id="year-to">
+        <option value="">до</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Місто </label>
     <select id="city-select">
       <option value="будь-яке">Будь-яке місто</option>
       <option>Київ</option><option>Харків</option><option>Одеса</option>
@@ -181,12 +213,11 @@
   </div>
 
   <div class="field">
-    <label>Бюджет ($)</label>
-    <div class="budget-row">
+    <label>Бюджет ($) </label>
+    <div class="two-col">
       <input type="number" id="budget-from" placeholder="від" min="0">
       <input type="number" id="budget-to" placeholder="до" min="0">
     </div>
-    <div class="error" id="budget-error">Вкажіть максимальний бюджет</div>
   </div>
 
   <div class="field">
@@ -204,7 +235,7 @@
   <button class="save-btn" onclick="saveSearch()">Зберегти пошук</button>
 </div>
 
-<!-- Екран: Активні пошуки -->
+<!-- Екран: Мої пошуки -->
 <div class="screen" id="screen-searches">
   <div class="section-title" id="searches-count"></div>
   <div class="searches-list" id="searches-list"></div>
@@ -225,6 +256,14 @@ tg.ready();
 tg.expand();
 
 const WEBHOOK_URL = 'ВАШ_N8N_WEBHOOK_URL';
+
+const currentYear = new Date().getFullYear();
+const yearFromSel = document.getElementById('year-from');
+const yearToSel = document.getElementById('year-to');
+for (let y = currentYear; y >= 1990; y--) {
+  yearFromSel.innerHTML += `<option value="${y}">${y}</option>`;
+  yearToSel.innerHTML += `<option value="${y}">${y}</option>`;
+}
 
 const models = {
   'BMW': ['1 Series','2 Series','3 Series','4 Series','5 Series','7 Series','X1','X3','X5','X6','X7','M3','M5','Z4'],
@@ -275,6 +314,13 @@ function showScreen(name) {
   if (name === 'searches') renderSearches();
 }
 
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
 function getSearches() {
   try { return JSON.parse(localStorage.getItem('avto_searches') || '[]'); }
   catch { return []; }
@@ -302,22 +348,34 @@ function renderSearches() {
   }
 
   countEl.textContent = `Активних пошуків: ${list.length}`;
-  container.innerHTML = list.map((s, i) => `
-    <div class="search-card">
-      <div class="card-header">
-        <div class="card-title">${s.brand} ${s.model !== 'будь-яка' ? s.model : ''}</div>
-        <div class="card-badge">активний</div>
-      </div>
-      <div class="card-params">
-        <span class="param-tag">📍 ${s.city}</span>
-        ${s.budget_to ? `<span class="param-tag">💰 до ${parseInt(s.budget_to).toLocaleString()}$</span>` : ''}
-        <span class="param-tag">📉 -${s.discount}% від ринку</span>
-      </div>
-      <div class="card-footer">
-        <button class="delete-btn" onclick="deleteSearch(${i})">Видалити</button>
-      </div>
-    </div>
-  `).join('');
+  container.innerHTML = list.map((s, i) => {
+    const yearStr = s.year_from || s.year_to
+      ? `📅 ${s.year_from || '...'} — ${s.year_to || '...'}`
+      : null;
+    const budgetStr = s.budget_to
+      ? `💰 до ${parseInt(s.budget_to).toLocaleString()}$`
+      : null;
+    const tags = [
+      `📍 ${s.city}`,
+      yearStr,
+      budgetStr,
+      `📉 -${s.discount}% від ринку`
+    ].filter(Boolean);
+
+    return `
+      <div class="search-card">
+        <div class="card-header">
+          <div class="card-title">${s.brand} ${s.model !== 'будь-яка' ? s.model : ''}</div>
+          <div class="card-badge">активний</div>
+        </div>
+        <div class="card-params">
+          ${tags.map(t => `<span class="param-tag">${t}</span>`).join('')}
+        </div>
+        <div class="card-footer">
+          <button class="delete-btn" onclick="deleteSearch(${i})">Видалити</button>
+        </div>
+      </div>`;
+  }).join('');
 }
 
 function deleteSearch(index) {
@@ -329,33 +387,24 @@ function deleteSearch(index) {
 
 function saveSearch() {
   const brand = document.getElementById('brand-select').value;
-  const budgetTo = document.getElementById('budget-to').value;
-  let valid = true;
 
   if (!brand) {
     document.getElementById('brand-error').classList.add('show');
-    valid = false;
-  } else {
-    document.getElementById('brand-error').classList.remove('show');
+    document.getElementById('brand-select').focus();
+    return;
   }
-
-  if (!budgetTo || parseInt(budgetTo) < 500) {
-    document.getElementById('budget-error').classList.add('show');
-    valid = false;
-  } else {
-    document.getElementById('budget-error').classList.remove('show');
-  }
-
-  if (!valid) return;
+  document.getElementById('brand-error').classList.remove('show');
 
   const search = {
     telegram_id: String(tg.initDataUnsafe?.user?.id || 'test'),
     username: tg.initDataUnsafe?.user?.username || '',
     brand,
     model: document.getElementById('model-select').value,
+    year_from: document.getElementById('year-from').value || '',
+    year_to: document.getElementById('year-to').value || '',
     city: document.getElementById('city-select').value,
-    budget_from: document.getElementById('budget-from').value || '0',
-    budget_to: budgetTo,
+    budget_from: document.getElementById('budget-from').value || '',
+    budget_to: document.getElementById('budget-to').value || '',
     discount: document.getElementById('discount-select').value,
     status: 'active',
     created_at: new Date().toISOString()
@@ -373,14 +422,15 @@ function saveSearch() {
 
   document.getElementById('brand-select').value = '';
   document.getElementById('model-select').innerHTML = '<option value="будь-яка">Будь-яка модель</option>';
+  document.getElementById('year-from').value = '';
+  document.getElementById('year-to').value = '';
   document.getElementById('city-select').value = 'будь-яке';
   document.getElementById('budget-from').value = '';
   document.getElementById('budget-to').value = '';
   document.getElementById('discount-select').value = '10';
 
-  const msg = document.getElementById('success-msg');
-  msg.classList.add('show');
-  setTimeout(() => msg.classList.remove('show'), 3000);
+  showToast('✅ Пошук збережено!');
+  setTimeout(() => showScreen('searches'), 1500);
 }
 </script>
 </body>
