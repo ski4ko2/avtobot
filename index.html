@@ -396,6 +396,7 @@ function saveSearch() {
   document.getElementById('brand-error').classList.remove('show');
 
   const search = {
+    search_id: Date.now().toString(),
     telegram_id: String(tg.initDataUnsafe?.user?.id || 'test'),
     username: tg.initDataUnsafe?.user?.username || '',
     brand,
