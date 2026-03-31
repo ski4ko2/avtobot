@@ -380,9 +380,19 @@ function renderSearches() {
 
 function deleteSearch(index) {
   const list = getSearches();
+  const removed = list[index];
   list.splice(index, 1);
   saveSearchesToStorage(list);
   renderSearches();
+
+  fetch(WEBHOOK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ 
+      action: 'delete', 
+      search: removed 
+    })
+  }).catch(() => {});
 }
 
 function saveSearch() {
